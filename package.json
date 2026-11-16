@@ -1,0 +1,69 @@
+{
+  "name": "dsh-conversation-title",
+  "version": "0.3.0",
+  "description": "按工作区模板自动整理及批量整理 DSH 会话标题。",
+  "type": "module",
+  "license": "CC0-1.0",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "remote.js",
+    "client.js",
+    "title.js",
+    "batch.js",
+    "templates.js",
+    "icon.svg",
+    "locale",
+    "policy",
+    "cordis.patch.yml",
+    "assets",
+    "screenshots.json",
+    "docs/usage.md",
+    "README.en.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "engines": {
+    "dsh": "0.2.2-rc.3"
+  },
+  "scripts": {
+    "check": "node --check index.js && node --check remote.js && node --check client.js && node --check title.js && node --check batch.js && node --check templates.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiaomao361/dsh-conversation-title.git"
+  },
+  "homepage": "https://github.com/xiaomao361/dsh-conversation-title#readme",
+  "bugs": {
+    "url": "https://github.com/xiaomao361/dsh-conversation-title/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "conversation-title",
+    "workspace",
+    "templates"
+  ]
+}

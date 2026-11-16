@@ -1,0 +1,5 @@
+- insert:
+    - id: conversation-title
+      name: dsh-conversation-title
+      config:
+        automatic: true
