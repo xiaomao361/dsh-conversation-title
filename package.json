@@ -1,6 +1,6 @@
 {
   "name": "dsh-conversation-title",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "按工作区模板自动整理及批量整理 DSH 会话标题。",
   "type": "module",
   "license": "CC0-1.0",

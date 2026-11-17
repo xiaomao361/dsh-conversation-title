@@ -12,19 +12,19 @@
 
 安装后从任一会话顶栏进入 **批量整理**。已有本地链接开发版时，继续用该链接即可。
 
-**从 GitHub 安装到 Desktop profile**
+**从 npm 安装到 Desktop profile**
 
 ```sh
-dsh plugin --profile desktop add "git+https://github.com/xiaomao361/dsh-conversation-title.git#main"
+dsh plugin --profile desktop add dsh-conversation-title --registry=https://registry.npmjs.org
 ```
 
 如果终端找不到 `dsh`，macOS 上可使用 Desktop 的内置 CLI：
 
 ```sh
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "git+https://github.com/xiaomao361/dsh-conversation-title.git#main"
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-conversation-title --registry=https://registry.npmjs.org
 ```
 
-安装完成后重新打开 DSH。使用其他 profile 时，把 `desktop` 换成对应名称。
+安装完成后重新打开 DSH。使用其他 profile 时，把 `desktop` 换成对应名称。也可以使用 [GitHub 源码](https://github.com/xiaomao361/dsh-conversation-title) 安装。
 
 <details>
 <summary>本地链接与打包安装</summary>
@@ -38,7 +38,7 @@ dsh plugin --profile desktop add "link:$(pwd)"
 分发压缩包时，在仓库运行 `npm pack`，再执行：
 
 ```sh
-dsh plugin --profile desktop add "/path/to/dsh-conversation-title-0.3.0.tgz"
+dsh plugin --profile desktop add "/path/to/dsh-conversation-title-0.3.1.tgz"
 ```
 
 </details>

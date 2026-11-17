@@ -118,11 +118,29 @@ window.__ModuleLoader__.load({
     function TemplateLibrary({ info, workspace, busy, changeTemplate, appearance }) {
       const formatHelp = useId()
       const formatInput = useRef(null)
+      const nameInput = useRef(null)
+      const templateSelect = useRef(null)
+      const nextTypeInput = useRef(null)
+      const pendingTypeFocus = useRef(null)
+      const returnFocus = useRef(false)
       const rowNumber = useRef(0)
       const [selectedId, setSelectedId] = useState(workspace?.templateId ?? 'skill-default')
       const [draft, setDraft] = useState(null)
       const [confirmDelete, setConfirmDelete] = useState(false)
       const selected = info.library.find(item => item.id === selectedId) ?? info.library[0]
+      const editing = draft !== null
+      const typeCount = draft?.types.length ?? 0
+      useEffect(() => {
+        if (editing) nameInput.current?.focus()
+        else if (returnFocus.current) templateSelect.current?.focus()
+        returnFocus.current = editing
+      }, [editing])
+      useEffect(() => {
+        if (pendingTypeFocus.current !== null) {
+          nextTypeInput.current?.focus()
+          pendingTypeFocus.current = null
+        }
+      }, [typeCount])
 
       function edit(copy) {
         setConfirmDelete(false)
@@ -169,7 +187,7 @@ window.__ModuleLoader__.load({
       return h('section', { className: 'dct-library', 'aria-label': '模板库' },
         h('div', { className: 'dct-library-bar' },
           h('label', { className: 'dct-range' }, '查看模板',
-            h('select', { value: selected.id, disabled: Boolean(busy || draft), onChange: event => {
+            h('select', { ref: templateSelect, value: selected.id, disabled: Boolean(busy || draft), onChange: event => {
               setSelectedId(event.target.value)
               setConfirmDelete(false)
             } }, ...info.library.map(item => h('option', { value: item.id, key: item.id }, item.name)))),
@@ -183,8 +201,10 @@ window.__ModuleLoader__.load({
             setDraft(null)
           }
         } },
+          h('h3', { className: 'dct-editor-heading' }, draft.id === null ? '新建模板' : '编辑模板'),
+          draft.id === null && h('p', { className: 'dct-message dct-copy-source' }, `复制自「${selected.name}」`),
           h('label', { className: 'dct-range' }, '模板名称', h('input', {
-            value: draft.name, maxLength: 40, required: true, placeholder: '例如研发周报',
+            ref: nameInput, value: draft.name, maxLength: 40, required: true, placeholder: '例如研发周报',
             disabled: !canEdit, onChange: event => setDraft({ ...draft, name: event.target.value }),
           })),
           h('div', { className: 'dct-template-grid', 'data-layout': appearance.layout },
@@ -201,9 +221,11 @@ window.__ModuleLoader__.load({
           preview.error && h('p', { role: 'status', className: 'dct-message' }, preview.error),
           h('fieldset', { className: 'dct-type-editor', disabled: !canEdit },
             h('legend', null, '类型选项'),
-            h('p', { className: 'dct-message' }, '可编辑类型名称，补充用途说明，或添加、删除类型。'),
+            h('div', { className: 'dct-type-row dct-type-head', 'aria-hidden': true },
+              h('span', null, '类型名称'), h('span', null, '用途说明（选填）'), h('span', null, '移除')),
             ...draft.types.map((item, index) => h('div', { className: 'dct-type-row', key: item.key },
-              h('input', { value: item.name, maxLength: 20, required: true, 'aria-label': `类型 ${index + 1} 的名称`,
+              h('input', { ref: item.key === pendingTypeFocus.current ? nextTypeInput : undefined,
+                value: item.name, maxLength: 20, required: true, 'aria-label': `类型 ${index + 1} 的名称`,
                 placeholder: '类型名称', onChange: event => changeType(item.key, { name: event.target.value }) }),
               h('input', { value: item.description, maxLength: 120, 'aria-label': `类型 ${index + 1} 的用途说明`,
                 placeholder: '用途说明（选填）', onChange: event => changeType(item.key, { description: event.target.value }) }),
@@ -212,11 +234,12 @@ window.__ModuleLoader__.load({
                   setDraft(previous => ({ ...previous, types: previous.types.filter(row => row.key !== item.key) })) }, '移除'))),
             h('button', { type: 'button', disabled: draft.types.length >= 16, onClick: () => {
               const key = ++rowNumber.current
+              pendingTypeFocus.current = key
               setDraft(previous => ({ ...previous, types: [...previous.types, { key, name: '', description: '' }] }))
             } }, '添加类型'),
             typeError && h('p', { role: 'status', className: 'dct-message' }, typeError)),
-          affected > 0 && h('p', { className: 'dct-message' }, `保存后会更新 ${affected} 个引用此模板的工作区。`),
-          h('div', { className: 'dct-footer' },
+          h('div', { className: 'dct-footer dct-editor-footer' },
+            affected > 0 && h('small', { className: 'dct-editor-impact' }, `影响 ${affected} 个引用工作区`),
             h('button', { type: 'button', disabled: Boolean(busy), onClick: () => setDraft(null) }, '取消'),
             h('button', { type: 'submit', className: 'dct-primary',
               disabled: !canEdit || Boolean(preview.error || typeError) || !draft.name.trim() }, '保存模板')))
@@ -228,6 +251,7 @@ window.__ModuleLoader__.load({
               h('li', { key: item.name }, h('strong', null, item.name), item.description && h('small', null, item.description)))),
             h('p', { className: 'dct-message' }, selected.builtin ? '内置模板。选择「新建模板」可复制后修改。'
               : `${selected.usedBy} 个工作区正在使用此模板。`),
+            confirmDelete && h('p', { className: 'dct-message' }, `删除「${selected.name}」？`),
             !selected.builtin && h('div', { className: 'dct-footer' },
               confirmDelete ? h(React.Fragment, null,
                 h('button', { type: 'button', disabled: Boolean(busy), onClick: () => setConfirmDelete(false) }, '取消删除'),
@@ -259,6 +283,7 @@ window.__ModuleLoader__.load({
       const [status, setStatus] = useState('')
       const [busy, setBusy] = useState('')
       const [results, setResults] = useState([])
+      const [run, setRun] = useState(null)
       const stopRequested = useRef(false)
       const selected = info?.workspaces?.find(item => item.id === scope)
       const assignedTemplate = selected && (info.library.find(item => item.id === assignment) ??
@@ -269,6 +294,10 @@ window.__ModuleLoader__.load({
       const ignored = results.filter(item => skipped.has(item.status)).length
       const undone = results.filter(item => item.status === 'undone').length
       const problems = results.filter(item => !skipped.has(item.status) && item.status !== 'saved' && item.status !== 'undone')
+      const remaining = run ? run.total - results.length : 0
+      const counts = [['已整理', changed.length], ['跳过', ignored], ['未完成', problems.length]]
+      if (remaining > 0 && busy !== 'organize') counts.push(['未处理', remaining])
+      if (undone > 0) counts.push(['已撤销', undone])
 
       useEffect(() => {
         const element = dialog.current
@@ -341,6 +370,7 @@ window.__ModuleLoader__.load({
         setBusy('organize')
         setStatus('')
         setResults([])
+        setRun({ label: selected?.title ?? '全部工作区', total: plan.items.length })
         stopRequested.current = false
         const controller = new AbortController()
         request.current = controller
@@ -392,14 +422,15 @@ window.__ModuleLoader__.load({
       return h('dialog', { ref: dialog, className: 'dct-dialog dct-batch', 'aria-labelledby': heading,
         onCancel(event) { event.preventDefault(); if (!busy) close() } },
       h('div', { className: 'dct-batch-body' },
-        h('header', { className: 'dct-dialog-header' }, h('h2', { id: heading }, '批量整理标题'),
-          h('button', { type: 'button', className: 'dct-close', disabled: Boolean(busy), 'aria-label': '关闭', onClick: close }, '×')),
-        info?.status === 'ready' ? h(React.Fragment, null,
-          h('nav', { className: 'dct-mode', 'aria-label': '会话标题功能' },
+        h('header', { className: 'dct-dialog-top' },
+          h('div', { className: 'dct-dialog-header' }, h('h2', { id: heading }, '批量整理标题'),
+            h('button', { type: 'button', className: 'dct-close', disabled: Boolean(busy), 'aria-label': '关闭', onClick: close }, '×')),
+          info?.status === 'ready' && h('nav', { className: 'dct-mode', 'aria-label': '会话标题功能' },
             h('button', { type: 'button', 'aria-pressed': mode === 'batch', disabled: Boolean(busy),
               onClick: () => { setMode('batch'); setNotice('') } }, '整理会话'),
             h('button', { type: 'button', 'aria-pressed': mode === 'library', disabled: Boolean(busy),
-              onClick: () => { setMode('library'); setNotice('') } }, '模板库')),
+              onClick: () => { setMode('library'); setNotice('') } }, '模板库'))),
+        info?.status === 'ready' ? h(React.Fragment, null,
           h('div', { hidden: mode !== 'library' }, h(TemplateLibrary, { info, workspace: selected, busy, changeTemplate, appearance: preferences })),
           h('div', { hidden: mode !== 'batch' },
           h('label', { className: 'dct-range' }, '整理范围', h('select', { value: scope, disabled: Boolean(busy), onChange: event => {
@@ -416,16 +447,19 @@ window.__ModuleLoader__.load({
           h('p', { className: 'dct-message', role: 'status' },
             scope === '' ? '请选择工作区。'
               : plan === null ? '正在检查未归档会话…'
-                : plan.status === 'ready' ? `${plan.items.length} 条未归档会话可检查。手动固定的标题会保留。`
+                : plan.status === 'ready' ? (plan.items.length
+                  ? `${plan.items.length} 条未归档会话可检查。手动固定的标题会保留。`
+                  : '这个范围内暂时没有可整理的会话。')
                   : batchMessages[plan.status] ?? batchMessages.unavailable),
           selected && assignedTemplate && h('section', { className: 'dct-template-choice' },
             h('label', { className: 'dct-range' }, '工作区使用的模板', h('select', {
               value: assignedTemplate.id, disabled: Boolean(busy) || !info.canSetTemplate,
               onChange: event => { setAssignment(event.target.value); setNotice('') },
             }, ...info.library.map(item => h('option', { key: item.id, value: item.id }, item.name)))),
-            h(Preview, { appearance: preferences, label: '标题示例',
+            h(Preview, { appearance: preferences, label: assignmentPending ? '待应用模板的标题示例' : '标题示例',
               title: templatePreview(assignedTemplate.template, selected.title, assignedTemplate.types[0].name).sample }),
             assignmentPending && h('div', { className: 'dct-footer' },
+              h('small', { className: 'dct-editor-impact' }, '应用模板后即可整理。'),
               h('button', { type: 'button', disabled: Boolean(busy), onClick: () => setAssignment(null) }, '取消'),
               h('button', { type: 'button', disabled: Boolean(busy), onClick: async () => {
                 const result = await changeTemplate('assignTemplate', {
@@ -447,14 +481,18 @@ window.__ModuleLoader__.load({
             } }, '停止后续整理'),
             h('button', { type: 'button', className: 'dct-primary', onClick: organize,
               disabled: Boolean(busy) || Boolean(assignmentPending) || plan?.status !== 'ready' || plan.items.length === 0 }, '一键整理')),
-          (results.length > 0 || status || busy === 'organize') && h('section', { className: 'dct-batch-results' },
+          run && h('section', { className: 'dct-batch-results', 'aria-label': '整理结果' },
+            h('div', { className: 'dct-result-heading' }, h('h3', null, '本次整理'), h('span', null, run.label)),
             h('p', { className: 'dct-message', role: 'status' },
-              busy === 'organize' ? `已检查 ${results.length} / ${plan.items.length} 条。` : status),
+              busy === 'organize' ? `已检查 ${results.length} / ${run.total} 条。` : status),
+            busy === 'organize' && h('progress', { className: 'dct-progress', 'aria-label': '会话检查进度',
+              max: run.total, value: results.length }),
             busy === 'organize' && status && h('p', { className: 'dct-message' }, status),
-            h('p', null, `已整理 ${changed.length} · 跳过 ${ignored} · 未完成 ${problems.length}${undone ? ` · 已撤销 ${undone}` : ''}`),
+            h('dl', { className: 'dct-result-counts' }, ...counts.map(([label, count]) =>
+              h('div', { key: label }, h('dt', null, label), h('dd', null, count)))),
             changed.length > 0 && h('details', null, h('summary', null, '查看改名记录'),
               h('ul', null, ...changed.map(item => h('li', { key: item.sessionId },
-                h('span', null, item.original), h('strong', null, item.title))))),
+                h('del', null, item.original), h('strong', null, item.title))))),
             problems.length > 0 && h('details', null, h('summary', null, '查看未完成原因'),
               h('ul', null, ...problems.map(item => h('li', { key: item.sessionId },
                 h('span', null, item.title || '未命名会话'), h('strong', null, batchMessages[item.status] ?? '会话未修改。'))))),
@@ -491,6 +529,10 @@ window.__ModuleLoader__.load({
             setStatus(setAppearance({ ...getAppearance(), [key]: e.target.value }) ? '外观已保存。' : '无法保存外观设置。'),
           }, ...Object.entries(choices[key]).map(([value, name]) => h('option', { value, key: value }, name)))))),
         h('div', { className: 'dct-sample' },
+          h('div', { className: 'dct-sample-header', 'aria-hidden': true },
+            h('span', null, '会话顶栏'),
+            h('span', { className: 'dct-trigger dct-sample-trigger' }, h(Icon),
+              preferences.trigger === 'label' && h('span', null, '批量整理'))),
           h('div', { className: 'dct-fields', 'data-layout': preferences.layout, 'aria-hidden': true },
             h('span', null, '设计'), h('span', null, '会话标题插件')),
           h(Preview, { appearance: preferences, title: '1116｜设计｜会话标题插件', label: '效果预览' })),
@@ -583,7 +625,7 @@ window.__ModuleLoader__.load({
   box-shadow:var(--dsw-elevation-prominent,0 15px 45px rgb(0 0 0 / .24));box-sizing:border-box}
 .dct-dialog::backdrop{background:var(--dsw-alias-bg-mask,rgb(0 0 0 / .23))}
 .dct-dialog-header,.dct-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.dct-footer{justify-content:flex-end;margin-top:14px}
+.dct-footer{justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
 .dct-dialog h2,.dct-settings h2{margin:0;font-size:19px;font-weight:650;line-height:1.25}
 .dct-settings h3{margin:24px 0 10px;font-size:14px;font-weight:600}
 .dct-preview{display:grid;gap:4px;overflow-wrap:anywhere}
@@ -609,24 +651,38 @@ window.__ModuleLoader__.load({
 .dct-message{margin:10px 0 0;color:var(--dct-muted);min-height:1.5em;overflow-wrap:anywhere}
 .dct-settings{max-width:560px;width:100%}
 .dct-sample{border:1px solid var(--dct-border);border-radius:12px;padding:13px;margin-top:14px}
+.dct-sample-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:9px;
+  margin-bottom:10px;border-bottom:1px solid var(--dct-border);color:var(--dct-muted);font-size:12px}
+.dct-sample .dct-sample-trigger{pointer-events:none}
 .dct-sample .dct-fields span{padding:6px 9px;border:1px solid var(--dct-border);border-radius:7px}
 .dct-settings button{margin-top:8px}
 .dct-trigger:focus-visible,.dct-dialog :focus-visible,.dct-settings :focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dct-accent,Highlight));outline-offset:2px}
-.dct-batch{width:min(620px,calc(100% - 28px))}
-.dct-batch-body{padding:20px}
-.dct-range,.dct-template label{display:grid;gap:4px;margin-top:14px}
+.dct-batch{--dct-pad:20px;width:min(620px,calc(100% - 28px));overscroll-behavior:contain;
+  scroll-padding-block:108px 76px}
+.dct-batch-body{padding:var(--dct-pad)}
+.dct-dialog-top{position:sticky;z-index:2;top:0;background:var(--dct-surface);
+  margin:calc(-1 * var(--dct-pad)) calc(-1 * var(--dct-pad)) 14px;
+  padding:12px var(--dct-pad);border-bottom:1px solid var(--dct-border)}
+.dct-range{display:grid;gap:5px;margin-top:14px}
+.dct-library form .dct-range{font-weight:550}
+.dct-library form input{font-weight:400}
 .dct-range select,.dct-range input,.dct-type-row input{width:100%;min-height:34px;padding:5px 9px;border-radius:7px;
   color:inherit;background:var(--dct-field);border:1px solid var(--dct-border);font:inherit;box-sizing:border-box}
 .dct-directory{display:block;margin-top:5px;color:var(--dct-muted);overflow-wrap:anywhere}
 .dct-template-choice,.dct-batch-results{margin-top:14px;padding-top:12px;border-top:1px solid var(--dct-border)}
 .dct-template-choice summary,.dct-batch-results summary{cursor:pointer;width:fit-content}
-.dct-mode{display:flex;gap:4px;padding:3px;margin:14px 0 16px;width:fit-content;
+.dct-mode{display:flex;gap:4px;padding:3px;margin:8px 0 0;width:fit-content;
   background:var(--dct-field);border:1px solid var(--dct-border);border-radius:var(--dsw-radius-md,9px)}
 .dct-mode button{min-height:28px;padding:3px 12px;border-color:transparent;background:transparent;color:var(--dct-muted)}
 .dct-mode button[aria-pressed=true]{background:var(--dct-surface);border-color:var(--dct-border);color:var(--dct-ink);font-weight:600}
 .dct-library-bar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
 .dct-library-bar .dct-range,.dct-template-choice .dct-range{margin-top:0}
 .dct-library-content h3{font-size:13px;margin:14px 0 8px;font-weight:600}
+.dct-editor-heading{font-size:15px;margin:16px 0 0;font-weight:650}
+.dct-copy-source{margin-top:3px}
+.dct-editor-footer{position:sticky;z-index:1;bottom:0;padding:10px 0 8px;
+  background:var(--dct-surface);border-top:1px solid var(--dct-border)}
+.dct-editor-impact{margin-inline-end:auto;color:var(--dct-muted)}
 .dct-format{margin:14px 0 0;color:var(--dct-muted);font-family:var(--dsw-font-mono,monospace);overflow-wrap:anywhere}
 .dct-type-list,.dct-assignment-list{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:10px 0 0}
 .dct-type-list li{display:flex;gap:6px;align-items:baseline;padding:3px 8px;border:1px solid var(--dct-border);
@@ -642,8 +698,9 @@ window.__ModuleLoader__.load({
 .dct-type-editor legend{padding-inline:4px;font-weight:600}
 .dct-type-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:7px;margin-bottom:6px}
 .dct-type-row button{padding-inline:7px}
-.dct-template-grid{min-width:0}
-.dct-template-grid{display:grid;gap:12px;align-items:start}
+.dct-type-head{font-size:11px;color:var(--dct-muted);margin:3px 0 6px}
+.dct-type-head span:last-child{visibility:hidden}
+.dct-template-grid{display:grid;gap:12px;align-items:start;min-width:0}
 .dct-template-grid[data-layout=side]{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
 .dct-template-grid .dct-preview{margin-top:14px}
 .dct-fields-toolbar{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
@@ -652,8 +709,26 @@ window.__ModuleLoader__.load({
 .dct-batch-results ul{margin:8px 0;padding:0;list-style:none;max-height:210px;overflow:auto}
 .dct-batch-results li{display:grid;gap:3px;padding:8px 0;overflow-wrap:anywhere}
 .dct-batch-results li+li{border-top:1px solid var(--dct-border)}
-.dct-batch-results li span{color:var(--dct-muted)}
-@media(max-width:420px){.dct-type-row{grid-template-columns:minmax(0,1fr) auto}.dct-type-row input:nth-child(2){grid-row:2;grid-column:1/-1}}
+.dct-batch-results li span,.dct-batch-results li del{color:var(--dct-muted)}
+.dct-result-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.dct-result-heading h3{margin:0;font-size:14px;font-weight:650}
+.dct-result-heading span{color:var(--dct-muted);overflow-wrap:anywhere;min-width:0;text-align:end}
+.dct-result-counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(68px,1fr));gap:6px;margin:10px 0 12px}
+.dct-result-counts div{background:var(--dct-field);border:1px solid var(--dct-border);
+  border-radius:var(--dsw-radius-sm,7px);padding:7px 10px}
+.dct-result-counts dt{font-size:11px;color:var(--dct-muted)}
+.dct-result-counts dd{margin:0;font-size:17px;font-variant-numeric:tabular-nums;font-weight:600}
+.dct-progress{display:block;width:100%;height:8px;margin:5px 0 10px;accent-color:var(--dct-accent)}
+@media(max-width:420px){
+  .dct-batch{--dct-pad:14px}
+  .dct-type-row{grid-template-columns:minmax(0,1fr) auto}
+  .dct-type-head{display:none}
+  .dct-type-row input:nth-child(2){grid-row:2;grid-column:1/-1}
+}
+@media(forced-colors:active){
+  .dct-mode button[aria-pressed=true]{border-color:Highlight}
+  .dct-dialog .dct-primary:not(:disabled){border-color:ButtonText}
+}
 @media(max-width:360px){.dct-fields[data-layout=side]{grid-template-columns:minmax(0,1fr)}}
 `
     return { apply, inject: ['slots', 'remote'], descriptors }

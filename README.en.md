@@ -7,7 +7,7 @@ A DeepSeek Harness plugin for workspace-based conversation titles. It can format
 Tested with **DSH 0.2.2-rc.3**. Install into the Desktop profile:
 
 ```sh
-dsh plugin --profile desktop add "git+https://github.com/xiaomao361/dsh-conversation-title.git#main"
+dsh plugin --profile desktop add dsh-conversation-title --registry=https://registry.npmjs.org
 ```
 
 Reopen DSH and choose **批量整理** (Organize titles) in the conversation header. Choose the current workspace, another workspace, or all workspaces. The **模板库** (Template library) tab lets you copy the built-in template, choose a name, and edit its format and type options. Apply a saved template to each workspace that should use it.
