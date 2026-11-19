@@ -4,7 +4,7 @@
 
 为 DeepSeek Harness 整理会话标题。按当前工作区规则生成标题，批量整理未归档会话，并让多个工作区共用一套命名模板。
 
-适配 **DSH 0.2.2-rc.3**。 [详细使用说明](docs/usage.md) · [English](README.en.md)
+要求 **DSH ≥ 0.2.2-rc.3**，已验证 0.2.2-rc.3 和 0.2.2-rc.5。 [详细使用说明](docs/usage.md) · [English](README.en.md)
 
 ![批量整理示例：选择整理范围和工作区模板](assets/screenshots/batch-organize.png)
 
@@ -38,7 +38,7 @@ dsh plugin --profile desktop add "link:$(pwd)"
 分发压缩包时，在仓库运行 `npm pack`，再执行：
 
 ```sh
-dsh plugin --profile desktop add "/path/to/dsh-conversation-title-0.3.1.tgz"
+dsh plugin --profile desktop add "/path/to/dsh-conversation-title-0.3.2.tgz"
 ```
 
 </details>

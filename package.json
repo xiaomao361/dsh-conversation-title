@@ -1,6 +1,6 @@
 {
   "name": "dsh-conversation-title",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "按工作区模板自动整理及批量整理 DSH 会话标题。",
   "type": "module",
   "license": "CC0-1.0",
@@ -41,7 +41,7 @@
     }
   },
   "engines": {
-    "dsh": "0.2.2-rc.3"
+    "dsh": ">=0.2.2-rc.3"
   },
   "scripts": {
     "check": "node --check index.js && node --check remote.js && node --check client.js && node --check title.js && node --check batch.js && node --check templates.js",

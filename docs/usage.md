@@ -1,6 +1,6 @@
 # 会话标题使用说明
 
-适配 DeepSeek Harness `0.2.2-rc.3`。安装方式见 [README](../README.md)。
+要求 DeepSeek Harness `≥0.2.2-rc.3`。安装方式见 [README](../README.md)。
 
 ## 第一次使用
 

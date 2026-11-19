@@ -4,7 +4,7 @@
 
 A DeepSeek Harness plugin for workspace-based conversation titles. It can format titles during normal conversations, organize unarchived sessions in bulk, and share named title templates across workspaces.
 
-Tested with **DSH 0.2.2-rc.3**. Install into the Desktop profile:
+Requires **DSH ≥ 0.2.2-rc.3**. Verified with 0.2.2-rc.3 and 0.2.2-rc.5. Install into the Desktop profile:
 
 ```sh
 dsh plugin --profile desktop add dsh-conversation-title --registry=https://registry.npmjs.org
