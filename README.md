@@ -38,7 +38,7 @@ dsh plugin --profile desktop add "link:$(pwd)"
 分发压缩包时，在仓库运行 `npm pack`，再执行：
 
 ```sh
-dsh plugin --profile desktop add "/path/to/dsh-conversation-title-0.3.2.tgz"
+dsh plugin --profile desktop add "/path/to/dsh-conversation-title-0.3.3.tgz"
 ```
 
 </details>
