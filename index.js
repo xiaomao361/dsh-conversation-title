@@ -36,10 +36,11 @@ export function apply(ctx, config = {}) {
     if (!date) return { status: 'missing_created_at' }
     let current
     try { current = ctx.sessionTitle.get(session) } catch { return { status: 'read_failed' } }
-    const template = batch.templateFor(session.id)
-    const typeOptions = batch.typesFor(session.id)
+    const { template, typeOptions, workspace } = batch.titleContextFor(session.id)
     const types = typeOptions.map(entry => entry.name)
-    const fields = parseTemplate(template, date, current?.title, types) ?? null
+    const fields = parseTemplate(template, date, current?.title, types, {
+      createdAt: session.header.createdAt, workspace,
+    })
     return {
       status: 'ready', template, fields, sessionId: session.id, date, title: current?.title ?? '',
       revision: current ? String(current.eventSeq) : null,

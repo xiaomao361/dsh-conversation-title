@@ -67,6 +67,8 @@
     "templates"
   ],
   "devDependencies": {
+    "react": "18.3.1",
+    "react-test-renderer": "18.3.1",
     "semver": "^7.7.3"
   }
 }

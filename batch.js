@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { DEFAULT_TEMPLATE, MAX_TITLE_BYTES, applyTemplate, parseTemplate, templateFields, titleDate } from './title.js'
+import { DEFAULT_TEMPLATE, MAX_TITLE_BYTES, TYPES, applyTemplate, parseTemplate, templateFields, titleDate } from './title.js'
 import { createTemplates } from './templates.js'
 
 async function suggest(ctx, policy, sessionId, events, typeOptions, signal) {
@@ -58,6 +58,11 @@ export function createBatch(ctx, policy, commit) {
   const templateFor = id => currentTemplate(workspaceFor(id)?.id)
   const typesFor = id => currentTypes(workspaceFor(id)?.id)
   const workspaceNameFor = id => workspaceFor(id)?.title
+  function titleContextFor(sessionId) {
+    const workspace = workspaceFor(sessionId)
+    const { template, types } = templates.current(workspace?.id)
+    return { template, typeOptions: types, workspace: workspace?.title }
+  }
   const isArchived = id => registry()?.archivedSessionIds.includes(id) === true
 
   function available(workspaceId, sessionId) {
@@ -119,19 +124,18 @@ export function createBatch(ctx, policy, commit) {
       const types = typeOptions.map(entry => entry.name)
       if (!original) return { status: 'no_content' }
       if (before.data.source.kind === 'user') return { status: 'manual_title' }
-      if (parseTemplate(template, date, original, types)) return { status: 'unchanged' }
+      const workspace = workspaceNameFor(sessionId)
+      const context = { createdAt: snapshot.session.createdAt, workspace, types }
+      if (parseTemplate(template, date, original, types, context)) return { status: 'unchanged' }
       const fields = templateFields(template)
       let suggestion = {}
       if (fields.includes('类型') || fields.includes('主题')) {
-        const old = parseTemplate(DEFAULT_TEMPLATE, date, original)
+        const old = parseTemplate(DEFAULT_TEMPLATE, date, original, [...types, ...TYPES])
         suggestion = old && (!fields.includes('类型') || types.includes(old.type)) ? old :
           await suggest(ctx, policy, sessionId, snapshot.events, typeOptions, signal)
         if (suggestion.status && suggestion.status !== 'suggested') return { status: suggestion.status }
       }
-      const workspace = workspaceNameFor(sessionId)
-      const title = applyTemplate(template, date, suggestion.type, suggestion.theme, {
-        createdAt: snapshot.session.createdAt, workspace, types,
-      })
+      const title = applyTemplate(template, date, suggestion.type, suggestion.theme, context)
       if (!title || Buffer.byteLength(title) > MAX_TITLE_BYTES) return { status: 'invalid_title' }
       if (title === original) return { status: 'unchanged' }
       if (signal.aborted) return { status: 'cancelled' }
@@ -169,6 +173,6 @@ export function createBatch(ctx, policy, commit) {
     if (result.status === 'saved') undo.delete(undoId)
     return { status: result.status === 'saved' ? 'undone' : result.status }
   }
-  return { templateFor, typesFor, workspaceNameFor, templateError, isArchived, info, saveTemplate: templates.saveWorkspace,
+  return { templateFor, typesFor, workspaceNameFor, titleContextFor, templateError, isArchived, info, saveTemplate: templates.saveWorkspace,
     saveNamedTemplate: templates.save, assignTemplate: templates.assign, deleteTemplate: templates.remove, plan, organize, undoTitle }
 }

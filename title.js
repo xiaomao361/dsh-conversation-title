@@ -87,24 +87,41 @@ export function composeTitle(date, type, theme) {
   return applyTemplate(DEFAULT_TEMPLATE, date, type, theme)
 }
 
-export function isFormatted(date, title) {
-  if (typeof title !== 'string') return false
-  const parts = title.split('｜')
-  return parts.length === 3 && parts[0] === date && composeTitle(date, parts[1], parts[2]) === title
+function parseSkillTitle(date, title, types) {
+  if (typeof title !== 'string') return null
+  const [, type, theme] = title.split('｜')
+  return applyTemplate(DEFAULT_TEMPLATE, date, type, theme, { types }) === title ? { type, theme } : null
 }
 
-export function parseTemplate(template, date, title, types = TYPES) {
-  if (!title || !date || !template.includes('{类型}') || !template.includes('{主题}') ||
-      !template.includes('{日期}') || /\{(?:工作区|日期:)/u.test(template)) return null
+export function isFormatted(date, title) {
+  return parseSkillTitle(date, title, TYPES) !== null
+}
+
+export function parseTemplate(template, date, title, types = TYPES, context = {}) {
+  if (!date || typeof title !== 'string' || !title || Buffer.byteLength(title) > MAX_TITLE_BYTES) return null
+  const values = { ...context, date, types }
+  if (template === DEFAULT_TEMPLATE) return parseSkillTitle(date, title, types)
+  // A bare theme cannot distinguish a formatted title from any old, free-form title.
+  if (template.trim() === '{主题}') return null
   const seen = new Set()
-  const parts = template.trim().replace(/\s+/gu, ' ').split(fieldPattern).map((part, index) => {
+  const parts = template.split(fieldPattern).map((part, index) => {
     if (index % 2 === 0) return escapePattern(part)
-    if (part === '日期') return date
+    if (part !== '类型' && part !== '主题') {
+      const value = resolveField(part, values)
+      return value == null ? null : escapePattern(value)
+    }
     const group = part === '类型' ? 'type' : 'theme'
     if (seen.has(group)) return `\\k<${group}>`
     seen.add(group)
     return group === 'type' ? `(?<type>${types.map(escapePattern).join('|')})` : '(?<theme>.+?)'
   })
-  const groups = new RegExp(`^${parts.join('')}$`, 'u').exec(title)?.groups
-  return groups && applyTemplate(template, date, groups.type, groups.theme, { types }) === title ? { ...groups } : null
+  if (parts.includes(null)) return null
+  const pattern = parts.join('').replace(/\s+/gu, ' ').trim()
+  const match = new RegExp(`^${pattern}$`, 'u').exec(title)
+  if (!match) return null
+  const fields = { ...match.groups }
+  if (applyTemplate(template, date, fields.type, fields.theme, values) !== title) return null
+  // A shorter format can otherwise absorb the old Skill separators into its theme.
+  if (fields.theme?.includes('｜') && parseSkillTitle(date, title, [...types, ...TYPES])) return null
+  return fields
 }

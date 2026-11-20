@@ -77,6 +77,11 @@ window.__ModuleLoader__.load({
         h('span', null, label), h('strong', null, title || '输入模板后显示标题'))
     }
 
+    function RenameList({ changes }) {
+      return h('ul', null, ...changes.map(item => h('li', { key: item.undoId },
+        h('del', null, item.original), h('strong', null, item.title))))
+    }
+
     function BatchAction({ sessionId, api }) {
       const preferences = useSyncExternalStore(subscribe, getAppearance, getDefaultAppearance)
       const [open, setOpen] = useState(false)
@@ -124,12 +129,23 @@ window.__ModuleLoader__.load({
       const pendingTypeFocus = useRef(null)
       const returnFocus = useRef(false)
       const rowNumber = useRef(0)
-      const [selectedId, setSelectedId] = useState(workspace?.templateId ?? 'skill-default')
+      const workspaceId = workspace?.id
+      const workspaceTemplateId = workspace?.templateId ?? 'skill-default'
+      const followedWorkspace = useRef({ workspaceId, templateId: workspaceTemplateId })
+      const [selectedId, setSelectedId] = useState(workspaceTemplateId)
       const [draft, setDraft] = useState(null)
       const [confirmDelete, setConfirmDelete] = useState(false)
-      const selected = info.library.find(item => item.id === selectedId) ?? info.library[0]
+      const selected = info.library.find(item => item.id === selectedId) ??
+        info.library.find(item => item.id === workspaceTemplateId) ?? info.library[0]
       const editing = draft !== null
       const typeCount = draft?.types.length ?? 0
+      useEffect(() => {
+        const previous = followedWorkspace.current
+        if (editing || (previous.workspaceId === workspaceId && previous.templateId === workspaceTemplateId)) return
+        followedWorkspace.current = { workspaceId, templateId: workspaceTemplateId }
+        setSelectedId(workspaceTemplateId)
+        setConfirmDelete(false)
+      }, [editing, workspaceId, workspaceTemplateId])
       useEffect(() => {
         if (editing) nameInput.current?.focus()
         else if (returnFocus.current) templateSelect.current?.focus()
@@ -147,6 +163,9 @@ window.__ModuleLoader__.load({
         setDraft({
           id: copy ? null : selected.id,
           revision: copy ? null : selected.revision,
+          sourceId: selected.id,
+          sourceName: selected.name,
+          previewWorkspace: workspace?.title ?? '工作区',
           name: copy ? '' : selected.name,
           template: selected.template,
           types: selected.types.map(type => ({ ...type, key: ++rowNumber.current })),
@@ -174,7 +193,7 @@ window.__ModuleLoader__.load({
       }
 
       const active = draft ?? selected
-      const preview = templatePreview(active.template, workspace?.title ?? '工作区', active.types[0]?.name || '设计')
+      const preview = templatePreview(active.template, draft?.previewWorkspace ?? workspace?.title ?? '工作区', active.types[0]?.name || '设计')
       const types = draft?.types.map(({ name, description }) => ({ name: name.trim(), description: description.trim() }))
       const typeError = types && (
         types.some(item => !item.name || /[{}｜|\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}]/u.test(item.name) ||
@@ -182,27 +201,30 @@ window.__ModuleLoader__.load({
           ? '请填写每个类型的名称。名称不能包含竖线或花括号。'
           : new Set(types.map(item => item.name)).size !== types.length ? '类型名称不能重复。' : '')
       const canEdit = info.canSetTemplate && !busy
-      const affected = draft?.id ? selected.usedBy : 0
+      const affected = draft?.id ? info.library.find(item => item.id === draft.id)?.usedBy ?? 0 : 0
 
       return h('section', { className: 'dct-library', 'aria-label': '模板库' },
         h('div', { className: 'dct-library-bar' },
           h('label', { className: 'dct-range' }, '查看模板',
-            h('select', { ref: templateSelect, value: selected.id, disabled: Boolean(busy || draft), onChange: event => {
+            h('select', { ref: templateSelect, value: draft?.sourceId ?? selected.id, disabled: Boolean(busy || draft), onChange: event => {
               setSelectedId(event.target.value)
               setConfirmDelete(false)
-            } }, ...info.library.map(item => h('option', { value: item.id, key: item.id }, item.name)))),
+            } }, draft && !info.library.some(item => item.id === draft.sourceId) &&
+              h('option', { value: draft.sourceId }, `${draft.sourceName}（已删除）`),
+            ...info.library.map(item => h('option', { value: item.id, key: item.id }, item.name)))),
           !draft && h('button', { type: 'button', disabled: !canEdit, onClick: () => edit(true) }, '新建模板')),
         draft ? h('form', { 'aria-label': draft.id === null ? '新建模板' : '编辑模板', onSubmit: async event => {
           event.preventDefault()
           if (!canEdit || preview.error || typeError || !draft.name.trim()) return
-          const result = await changeTemplate('saveNamedTemplate', { ...draft, types })
+          const { id, revision, name, template } = draft
+          const result = await changeTemplate('saveNamedTemplate', { id, revision, name, template, types })
           if (result?.status === 'saved') {
             setSelectedId(result.id)
             setDraft(null)
           }
         } },
           h('h3', { className: 'dct-editor-heading' }, draft.id === null ? '新建模板' : '编辑模板'),
-          draft.id === null && h('p', { className: 'dct-message dct-copy-source' }, `复制自「${selected.name}」`),
+          draft.id === null && h('p', { className: 'dct-message dct-copy-source' }, `复制自「${draft.sourceName}」`),
           h('label', { className: 'dct-range' }, '模板名称', h('input', {
             ref: nameInput, value: draft.name, maxLength: 40, required: true, placeholder: '例如研发周报',
             disabled: !canEdit, onChange: event => setDraft({ ...draft, name: event.target.value }),
@@ -258,9 +280,9 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', disabled: !canEdit, onClick: async () => {
                   const result = await changeTemplate('deleteTemplate', { id: selected.id, revision: selected.revision })
                   if (result?.status === 'deleted') {
-                    setSelectedId('skill-default')
-                    setConfirmDelete(false)
+                    setSelectedId(workspaceTemplateId)
                   }
+                  setConfirmDelete(false)
                 } }, '确认删除模板'))
                 : h(React.Fragment, null,
                   h('button', { type: 'button', disabled: !canEdit || selected.usedBy > 0,
@@ -284,6 +306,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState('')
       const [results, setResults] = useState([])
       const [run, setRun] = useState(null)
+      const [earlierRuns, setEarlierRuns] = useState([])
       const stopRequested = useRef(false)
       const selected = info?.workspaces?.find(item => item.id === scope)
       const assignedTemplate = selected && (info.library.find(item => item.id === assignment) ??
@@ -368,9 +391,11 @@ window.__ModuleLoader__.load({
       async function organize() {
         if (plan?.status !== 'ready' || busy || assignmentPending) return
         setBusy('organize')
+        setNotice('')
         setStatus('')
+        if (changed.length) setEarlierRuns(previous => [{ ...run, changes: changed }, ...previous])
         setResults([])
-        setRun({ label: selected?.title ?? '全部工作区', total: plan.items.length })
+        setRun({ number: (run?.number ?? 0) + 1, label: selected?.title ?? '全部工作区', total: plan.items.length })
         stopRequested.current = false
         const controller = new AbortController()
         request.current = controller
@@ -394,28 +419,37 @@ window.__ModuleLoader__.load({
         }
       }
 
-      async function undoBatch() {
-        if (!changed.length || busy) return
+      async function undoBatch(earlier = null) {
+        const rows = earlier?.changes ?? changed
+        if (!rows.length || busy) return
+        const report = earlier ? setNotice : setStatus
+        const label = earlier ? `第 ${earlier.number} 批「${earlier.label}」` : '本批'
         setBusy('undo')
-        setStatus('')
+        report(`正在撤销${label}的改名…`)
         const controller = new AbortController()
         request.current = controller
-        let failed = 0
+        const restored = new Set()
         try {
-          for (const item of changed) {
+          for (const item of rows) {
             const result = await api.batchUndo({ undoId: item.undoId }, controller.signal)
             if (controller.signal.aborted) return
-            if (result.status === 'undone') {
-              setResults(previous => previous.map(row => row.undoId === item.undoId ? { ...row, status: 'undone' } : row))
-            } else {
-              failed++
-            }
+            if (result.status === 'undone') restored.add(item.undoId)
           }
-          setStatus(failed ? `${failed} 条未能撤销，可能已改名、归档或移动。` : '已撤销本次改名。')
+          const failed = rows.length - restored.size
+          report(`${label}已撤销 ${restored.size} 条改名。` + (failed ? `另有 ${failed} 条未能撤销，可能已改名、归档或移动。` : ''))
         } catch {
-          if (!controller.signal.aborted) setStatus(batchMessages.network)
+          if (!controller.signal.aborted) report(`${label}已确认撤销 ${restored.size} 条。连接中断，请核对最后一条会话标题。`)
         } finally {
-          if (!controller.signal.aborted) setBusy('')
+          if (!controller.signal.aborted) {
+            if (earlier) {
+              setEarlierRuns(previous => previous.map(batch => batch.number === earlier.number
+                ? { ...batch, changes: batch.changes.filter(row => !restored.has(row.undoId)) } : batch
+              ).filter(batch => batch.changes.length))
+            } else {
+              setResults(previous => previous.map(row => restored.has(row.undoId) ? { ...row, status: 'undone' } : row))
+            }
+            setBusy('')
+          }
         }
       }
 
@@ -491,13 +525,19 @@ window.__ModuleLoader__.load({
             h('dl', { className: 'dct-result-counts' }, ...counts.map(([label, count]) =>
               h('div', { key: label }, h('dt', null, label), h('dd', null, count)))),
             changed.length > 0 && h('details', null, h('summary', null, '查看改名记录'),
-              h('ul', null, ...changed.map(item => h('li', { key: item.sessionId },
-                h('del', null, item.original), h('strong', null, item.title))))),
+              h(RenameList, { changes: changed })),
             problems.length > 0 && h('details', null, h('summary', null, '查看未完成原因'),
               h('ul', null, ...problems.map(item => h('li', { key: item.sessionId },
                 h('span', null, item.title || '未命名会话'), h('strong', null, batchMessages[item.status] ?? '会话未修改。'))))),
             changed.length > 0 && h('div', { className: 'dct-footer' },
-              h('button', { type: 'button', disabled: Boolean(busy), onClick: undoBatch }, '撤销本次改名')))),
+              h('button', { type: 'button', disabled: Boolean(busy), onClick: () => undoBatch() }, '撤销本次改名'))),
+          earlierRuns.length > 0 && h('section', { className: 'dct-batch-results', 'aria-label': '此前批次的改名' },
+            h('div', { className: 'dct-result-heading' }, h('h3', null, '此前批次的改名')),
+            ...earlierRuns.map(batch => h('div', { key: batch.number, className: 'dct-history-row' },
+              h('details', null, h('summary', null, `第 ${batch.number} 批 · ${batch.label}（${batch.changes.length} 条）`),
+                h(RenameList, { changes: batch.changes })),
+              h('button', { type: 'button', disabled: Boolean(busy), onClick: () => undoBatch(batch),
+                'aria-label': `撤销第 ${batch.number} 批「${batch.label}」的 ${batch.changes.length} 条改名` }, '撤销该批'))))),
           notice && h('p', { role: 'status', className: 'dct-message' }, notice)
         ) : h('p', { className: 'dct-message', role: 'status' }, notice || (info ? batchMessages.unavailable : '正在读取工作区…'))))
     }
@@ -709,6 +749,8 @@ window.__ModuleLoader__.load({
 .dct-batch-results ul{margin:8px 0;padding:0;list-style:none;max-height:210px;overflow:auto}
 .dct-batch-results li{display:grid;gap:3px;padding:8px 0;overflow-wrap:anywhere}
 .dct-batch-results li+li{border-top:1px solid var(--dct-border)}
+.dct-history-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px;margin-top:8px}
+.dct-history-row summary{padding-block:6px;overflow-wrap:anywhere}
 .dct-batch-results li span,.dct-batch-results li del{color:var(--dct-muted)}
 .dct-result-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .dct-result-heading h3{margin:0;font-size:14px;font-weight:650}

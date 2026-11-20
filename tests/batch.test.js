@@ -150,6 +150,31 @@ test('theme-only templates still process older generated titles', async t => {
   assert.equal((await f.batch.organize({ workspaceId: 'a', sessionId: 'main' }, signal())).title, '会话标题')
 })
 
+test('matching structured titles do not start the model and legacy Skill titles can shed their type', async t => {
+  const f = fixture(t)
+  const scope = { workspaceId: 'a', sessionId: 'main' }
+  const events = f.records.get('main').events
+  events.unshift({ type: 'user/message', data: { source: { kind: 'user' }, content: [{ type: 'text', text: '设计会话标题' }] } })
+  let modelLookups = 0
+  f.services.agentDefaultModel = { currentSelection() { modelLookups++; return null } }
+  for (const [template, title] of [['{类型}｜{主题}', '设计｜会话标题'],
+    ['【{工作区}】{日期:YYYY-MM-DD} {主题}', '【同名】2026-11-16 会话标题']]) {
+    assert.equal(f.batch.saveTemplate({ workspaceId: 'a', template }).status, 'saved')
+    events.at(-1).data.title = title
+    assert.equal((await f.batch.organize(scope, signal())).status, 'unchanged')
+    assert.equal(events.length, 2)
+    assert.equal(modelLookups, 0)
+  }
+  assert.equal(f.batch.saveTemplate({ workspaceId: 'a', template: '{日期}｜{主题}' }).status, 'saved')
+  events.at(-1).data.title = original
+  assert.equal((await f.batch.organize(scope, signal())).title, '1116｜会话标题')
+  assert.equal(f.batch.saveTemplate({ workspaceId: 'a', template: '{日期}｜{主题}',
+    types: [{ name: '排查', description: '' }] }).status, 'saved')
+  events.at(-1).data = { title: '1116｜排查｜日历提醒', source: { kind: 'fallback' } }
+  assert.equal((await f.batch.organize(scope, signal())).title, '1116｜日历提醒')
+  assert.equal(modelLookups, 0)
+})
+
 test('workspace type options persist, replace the Skill labels, and can be reset', async t => {
   const f = fixture(t)
   const types = [{ name: '需求', description: '产品需求和规划' }, { name: '排查', description: '故障定位' }]
